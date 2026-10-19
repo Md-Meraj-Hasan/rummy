@@ -255,3 +255,5 @@ html,body{height:100%;overflow:hidden!important}
   font-size: clamp(22px, 5.4vw, 29px) !important;
   font-weight: 900 !important;
 }
+
+.review-nav{display:flex;gap:8px;margin:10px 0}.review-nav .btn{flex:1;min-width:0}.review-nav .btn:disabled{opacity:.38;filter:grayscale(1);cursor:not-allowed}
