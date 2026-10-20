@@ -15,48 +15,40 @@ function renderScore(){state.page='scoreboard';screen.innerHTML=`<section class=
 function renderLastRoundCards(){
   if(!state.lastRoundSnapshot){renderScore();return;}
   state.page='roundcards';
-  const snap=state.lastRoundSnapshot;
-  const players=snap.players||[];
+  const snap=state.lastRoundSnapshot, players=snap.players||[];
   if(!players.length){renderScore();return;}
   if(!Number.isInteger(state.lastRoundViewIndex))state.lastRoundViewIndex=0;
   state.lastRoundViewIndex=Math.max(0,Math.min(state.lastRoundViewIndex,players.length-1));
-  const pi=state.lastRoundViewIndex;
-  const p=players[pi];
-  const hand=p.hand||[], groups=p.groups||[], used=new Set();
-  const kindNames={pure:'PURE SEQUENCE',impure:'IMPURE SEQUENCE',set:'SET'};
-  const kindColors={pure:'pure',impure:'impure',set:'set'};
-  const groupsHtml=groups.map(g=>{
-    const cards=(g.indices||[]).map(i=>hand[i]).filter(Boolean);
-    (g.indices||[]).forEach(i=>used.add(i));
-    return `<div class="review-group"><div class="review-group-title ${kindColors[g.kind]||''}">${kindNames[g.kind]||g.kind} · ${cards.length} cards</div><div class="review-cards">${cards.map(c=>`<div class="review-card">${cardHtml(c,-1)}</div>`).join('')}</div></div>`;
+  const pi=state.lastRoundViewIndex, p=players[pi], hand=p.hand||[], groups=p.groups||[];
+  const groupByIndex={}, groupTitles={pure:'PURE SEQ',impure:'IMPURE SEQ',set:'SET'};
+  groups.forEach((g,gi)=>(g.indices||[]).forEach(i=>{if(groupByIndex[i]===undefined)groupByIndex[i]={kind:g.kind,num:gi+1};}));
+  const cardsHtml=hand.map((c,i)=>{
+    const g=groupByIndex[i], kind=g?.kind||'loose', labelText=g?`${groupTitles[g.kind]||g.kind.toUpperCase()} ${g.num}`:'UNMATCHED';
+    return `<div class="final-card-tile ${kind}"><div class="final-card-face">${cardHtml(c,-1)}</div><div class="final-card-label">${labelText}</div></div>`;
   }).join('');
+  const used=new Set();groups.forEach(g=>(g.indices||[]).forEach(i=>used.add(i)));
   const loose=hand.filter((c,i)=>!used.has(i));
-  const pure=groups.filter(g=>g.kind==='pure').length;
-  const impure=groups.filter(g=>g.kind==='impure').length;
-  const sets=groups.filter(g=>g.kind==='set').length;
-  const playerHtml=`<section class="panel review-player">
-    <div class="review-player-head"><b>${esc(p.name)}</b><span>${hand.length} cards · ${p.score} penalty points ${p.winner?'· WINNER':''}</span></div>
-    <div class="review-stats"><span>Pure seq: <b>${pure}</b></span><span>Impure seq: <b>${impure}</b></span><span>Sets: <b>${sets}</b></span><span>Unmatched: <b>${loose.length}</b></span></div>
-    ${groupsHtml||'<p class="muted">No complete groups detected.</p>'}
-    ${loose.length?`<div class="review-group"><div class="review-group-title loose">UNMATCHED CARDS · ${loose.length}</div><div class="review-cards">${loose.map(c=>`<div class="review-card">${cardHtml(c,-1)}</div>`).join('')}</div>`:''}
-  </section>`;
+  const points=loose.reduce((sum,c)=>sum+pts(c),0);
+  const groupNames=groups.map((g,i)=>`${groupTitles[g.kind]||String(g.kind).toUpperCase()} ${i+1}`);
   screen.classList.add('game-screen');
-  screen.innerHTML=`<section class="panel review-summary">
-    <div class="section-title">ROUND ${snap.round} · FINAL DECLARATION REVIEW</div>
-    <p>Wild Joker: <b>${rank(snap.wild)}</b></p>
-    <p class="muted">Player ${pi+1} of ${players.length}. Use Previous / Next to inspect every player's final hand, including pure sequences, impure sequences, sets, unmatched cards and penalty points.</p>
-    <div class="review-nav">${btn('◀ PREVIOUS PLAYER','prevplayer','soft')}${btn('NEXT PLAYER ▶','nextplayer','soft')}</div>
-  </section>
-  ${playerHtml}
-  <section class="panel review-summary">
-    <div class="review-nav">${btn('◀ PREVIOUS PLAYER','prevplayer','soft')}${btn('NEXT PLAYER ▶','nextplayer','soft')}</div>
-    ${btn('VIEW SCOREBOARD','scoreboard','blue')}
-    ${btn('▶ PLAY NEXT ROUND','next')}
+  screen.innerHTML=`<section class="final-board-shell">
+    <header class="final-board-heading">FINAL BOARD · ${players.length} PLAYER${players.length===1?'':'S'}</header>
+    <div class="final-board-meta">WILD JOKER: ${rank(snap.wild)} <span>•</span> ROUND ${snap.round}</div>
+    <div class="final-board-nav">${btn('◀ PREVIOUS','prevplayer','blue')}${btn('NEXT PLAYER ▶','nextplayer','blue')}</div>
+    <div class="final-board-player"><div class="final-board-player-name">${p.winner?'🏆 ':''}${esc(p.name)}</div><div class="final-board-player-score">${hand.length} CARDS <span>•</span> ${p.score} PENALTY POINTS</div></div>
+    <div class="final-cards-grid">${cardsHtml}</div>
+    <div class="final-board-groups"><b>GROUPS:</b> ${groupNames.length?groupNames.map(esc).join(', '):'NONE DETECTED'}</div>
+    <div class="final-board-unmatched">UNMATCHED CARDS: ${loose.length} <span>•</span> THEIR POINTS: ${points}</div>
+    <div class="final-board-penalty">${loose.length?'Penalty cards: '+loose.map(label).map(esc).join(', '):'Penalty cards: None — all cards are grouped'}</div>
+    <div class="final-board-actions">${btn('⬅ BACK TO RESULT','backresult','blue')}${btn('▶ PLAY NEXT ROUND','next','green')}${btn('⌂ MAIN MENU','menu','wine')}</div>
   </section>`;
-  const prevButtons=screen.querySelectorAll('[data-act="prevplayer"]');
-  const nextButtons=screen.querySelectorAll('[data-act="nextplayer"]');
-  prevButtons.forEach(b=>{b.disabled=pi===0;});
-  nextButtons.forEach(b=>{b.disabled=pi===players.length-1;});
+  const prev=screen.querySelector('[data-act="prevplayer"]'), next=screen.querySelector('[data-act="nextplayer"]');
+  if(prev)prev.disabled=pi===0;if(next)next.disabled=pi===players.length-1;
+}
+function renderLastRoundResult(){
+  const snap=state.lastRoundSnapshot;if(!snap){renderScore();return;}
+  state.page='result';screen.classList.remove('game-screen');
+  screen.innerHTML=`<section class="panel hero"><div style="font-size:42px">${snap.players.some(p=>p.winner&&p.name==='You')?'🏆':'♠'}</div><h1>ROUND ${snap.round} RESULTS</h1><p>Wild Joker: ${rank(snap.wild)}</p></section><section class="panel"><div class="section-title">ROUND RESULTS</div>${snap.players.map(p=>`<div class="result-row"><span>${esc(p.name)} ${p.winner?'🏆':''}</span><span class="score">${p.score} points</span></div>`).join('')}</section>${btn('🃏 VIEW ALL PLAYERS’ CARDS','viewcards','soft')}${btn('VIEW SCOREBOARD','scoreboard','soft')}${btn('▶ PLAY NEXT ROUND','next')}${btn('MAIN MENU','menu','blue')}`;
 }
 function startRound(){state.round++;state.names=['You',...Array.from({length:state.opponents},(_,i)=>`Computer ${i+1}`)];state.scores=Array.from({length:state.names.length},(_,i)=>state.scores[i]||0);let d=shuffle(deckNew());state.wild=1+Math.floor(Math.random()*13);state.hands=state.names.map(()=>[]);for(let i=0;i<13;i++)for(const h of state.hands)h.push(d.pop());state.stock=d;state.discard=[state.stock.pop()];state.history=[`Opening card: ${label(state.discard[0])}`];state.lastDiscards=Array.from({length:state.names.length},()=>null);state.turn=0;state.drawn=false;state.roundOver=false;state.selected=-1;state.groups=[];state.message='Draw one card from Stock or Discard.';state.page='game';renderGame();}
 function cardHtml(c,i,cls=''){let isred=RED.has(c[1])?'red':'';let isprint=c[0]==='JOKER';return `<div class="card ${isred} ${cls}" data-card="${i}" title="${label(c)}"><span class="corner">${isprint?'JOKER':rank(c[0])}</span><span class="rank">${isprint?'★':rank(c[0])}</span><span class="suit">${c[1]}</span><span class="corner-suit">${c[1]}</span></div>`}
@@ -144,6 +136,6 @@ function showDiscardHistory(){const entries=(state.history||[]).slice().reverse(
 function newGameAsk(){dialog('NEW GAME CONFIRMATION','Your current round will be abandoned. Do you want to start a new game?',()=>renderSetup())}
 function dialog(title,msg,yes){let d=document.createElement('div');d.className='dialogback';d.innerHTML=`<div class="dialog"><h2>${esc(title)}</h2><p>${esc(msg)}</p><div class="choice"><button id="no">CANCEL</button><button id="yes" class="active">YES, NEW GAME</button></div></div>`;document.body.appendChild(d);$('#no',d).onclick=()=>d.remove();$('#yes',d).onclick=()=>{d.remove();yes()}}
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function handleAction(a){switch(a){case'menu':renderMenu();break;case'setup':renderSetup();break;case'rules':renderRules();break;case'scoreboard':renderScore();break;case'viewcards':state.lastRoundViewIndex=0;renderLastRoundCards();break;case'prevplayer':state.lastRoundViewIndex=Math.max(0,(state.lastRoundViewIndex||0)-1);renderLastRoundCards();break;case'nextplayer':state.lastRoundViewIndex=Math.min((state.lastRoundSnapshot?.players?.length||1)-1,(state.lastRoundViewIndex||0)+1);renderLastRoundCards();break;case'sound':state.sound=!state.sound;renderMenu();break;case'start':startRound();break;case'stock':draw('stock');break;case'pick':if(!state.discard.length){state.message='Discard pile is empty.';renderGame()}else{draw('discard')}break;case'history':showDiscardHistory();break;case'discard':discardSelected();break;case'sort':sortHand();break;case'declare':declare();break;case'hint':hint();break;case'newgame':newGameAsk();break;case'next':dialog('Play next round?','Start a fresh round with a new deal?',startRound);break;case'undo':if(state.undo&&state.drawn){state.hands[0]=state.undo.hand.map(c=>c.slice());state.stock=state.undo.stock.slice();state.discard=state.undo.discard.slice();state.history=state.undo.history.slice();state.lastDiscards=(state.undo.lastDiscards||[]).map(c=>c?c.slice():null);state.drawn=state.undo.drawn;state.selected=state.undo.selected;state.undo=null;state.message='Last draw undone.';renderGame()}else{state.message='Undo is available only before you discard.';renderGame()}break}}
+function handleAction(a){switch(a){case'menu':renderMenu();break;case'setup':renderSetup();break;case'rules':renderRules();break;case'scoreboard':renderScore();break;case'viewcards':state.lastRoundViewIndex=0;renderLastRoundCards();break;case'prevplayer':state.lastRoundViewIndex=Math.max(0,(state.lastRoundViewIndex||0)-1);renderLastRoundCards();break;case'nextplayer':state.lastRoundViewIndex=Math.min((state.lastRoundSnapshot?.players?.length||1)-1,(state.lastRoundViewIndex||0)+1);renderLastRoundCards();break;case'backresult':renderLastRoundResult();break;case'sound':state.sound=!state.sound;renderMenu();break;case'start':startRound();break;case'stock':draw('stock');break;case'pick':if(!state.discard.length){state.message='Discard pile is empty.';renderGame()}else{draw('discard')}break;case'history':showDiscardHistory();break;case'discard':discardSelected();break;case'sort':sortHand();break;case'declare':declare();break;case'hint':hint();break;case'newgame':newGameAsk();break;case'next':dialog('Play next round?','Start a fresh round with a new deal?',startRound);break;case'undo':if(state.undo&&state.drawn){state.hands[0]=state.undo.hand.map(c=>c.slice());state.stock=state.undo.stock.slice();state.discard=state.undo.discard.slice();state.history=state.undo.history.slice();state.lastDiscards=(state.undo.lastDiscards||[]).map(c=>c?c.slice():null);state.drawn=state.undo.drawn;state.selected=state.undo.selected;state.undo=null;state.message='Last draw undone.';renderGame()}else{state.message='Undo is available only before you discard.';renderGame()}break}}
 let lastActionAt=0;screen.addEventListener('click',e=>{const target=e.target instanceof Element?e.target:null;if(!target)return;let op=target.closest('[data-op]');if(op){state.opponents=Number(op.dataset.op);renderSetup();return}let df=target.closest('[data-diff]');if(df){state.difficulty=df.dataset.diff;renderSetup();return}const b=target.closest('button[data-act]');if(b){e.preventDefault();e.stopPropagation();const now=Date.now();if(now-lastActionAt<250)return;lastActionAt=now;handleAction(b.dataset.act);sound();return}const c=target.closest('[data-card]');if(c&&state.page==='game'){const i=Number(c.dataset.card);if(i>=0&&state.turn===0&&!state.roundOver){state.selected=state.selected===i?-1:i;state.message=state.selected<0?'Select a card, or draw from Stock/Discard.':`Selected ${label(state.hands[0][i])}. Draw first if needed, then tap the WASTE icon to discard.`;sound();renderGame()}return}});
 renderMenu();
