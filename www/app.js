@@ -30,7 +30,8 @@ function renderLastRoundCards(){
   const loose=hand.filter((c,i)=>!used.has(i));
   const points=loose.reduce((sum,c)=>sum+pts(c),0);
   const groupNames=groups.map((g,i)=>`${groupTitles[g.kind]||String(g.kind).toUpperCase()} ${i+1}`);
-  screen.classList.add('game-screen');
+  screen.classList.remove('game-screen');
+  screen.classList.add('final-review-screen');
   screen.innerHTML=`<section class="final-board-shell">
     <header class="final-board-heading">FINAL BOARD · ${players.length} PLAYER${players.length===1?'':'S'}</header>
     <div class="final-board-meta">WILD JOKER: ${rank(snap.wild)} <span>•</span> ROUND ${snap.round}</div>
